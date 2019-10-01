@@ -1,0 +1,786 @@
+swagger: "2.0"
+info:
+  title: RealTime24/7 Liquidity Information and Ordinary Control API
+  version: 1.0.0
+  description: |-
+    This API documentation provides details concerning the endpoints associated with the Online Liquidity application. The Online Liquidity application handles processes related to the liquidity of the participants. There are various operations performed such as:
+
+    - API for handling liquidity rule specific operations
+    - API for handling ordinary control specific operations
+
+host: 'no2-ppapp-4:42181'
+schemes:
+  - https
+produces:
+   - application/json
+consumes:
+   - application/json
+basePath: /demo-lq-online-app
+tags:
+  - name: "Liquidity Information"
+    description: 'The Liquidity module is designed to ensure that all participants have enough liquidity in RealTime24/7. The Liquidity Rule is the amount the participant wishes to have available for instant payments. Periodically, the Liquidity module will check the available credit for all participants and the Liquidity Rule, then calculate if there is a need for adjusting the credit line. If a participant needs an adjustment, the Liquidity module perform the adjustment automatically. These APIs are designed to help users to view or configure their liquidity rules.'
+  - name: "Ordinary Controls"
+    description: 'An ordinary control represents a process in RealTime24/7’s Liquidity module which performs a check on available credit and triggers increases or decreases of the credit lines for the participants if deemed necessary.'
+paths:
+  /liquidity-info/settings:    
+    post:
+      tags:
+        - "Liquidity Information"
+      summary: Create new liquidity rule and thresholds for specific participant
+      description:
+        Create new liquidity rule and thresholds. New rule and thresholds will be persisted and used in the next ordinary control. 
+
+      operationId: saveLiquiditySettings
+      consumes:
+        - application/json
+      produces:
+        - application/vnd.nets.app-v1+json
+      parameters:
+        - in: body
+          name: LiquiditySettings
+          description: Participant liquidity rule and thresholds
+          required: true
+          schema:
+            $ref: '#/definitions/LiquiditySettingsApprovalReq'
+      responses:
+        '201':
+          description: Created
+          schema:
+            $ref: '#/definitions/LiquiditySettingsApprovalRes'
+        '200':
+          description: OK
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden
+        '404':
+          description: Not Found
+      deprecated: false
+  /liquidity-info/settings/{financialIdentifier}:
+    get:
+      tags:
+        - "Liquidity Information"
+      summary: Get latest liquidity rule and thresholds for specific participant
+      description: |-
+        Current liquidity settings will be returned for specific participant. 
+        When _history_ query parameter is _true_ then history of liquidity rule and threasholds will be returned for given date range along with current liquidity sttings. When date range is not present last one month data will be returned. 
+      operationId: getLiquiditySettings
+      produces:
+        - application/vnd.nets.app-v1+json
+      parameters:
+        - $ref: '#/parameters/financialIdentifierParam'
+        - in: query
+          name: fromDate
+          description: From Date
+          type: string
+          default: '2019-08-24'
+        - in: query
+          name: toDate
+          description: To date
+          type: string
+          default: '2019-09-24'
+        - in: query
+          name: history
+          description: History
+          type: boolean
+          default: false
+      responses:
+        '200':
+          description: OK
+          schema:
+              $ref: '#/definitions/LiquiditySettingsRes'
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden
+        '404':
+          description: Not Found
+      deprecated: false
+  /liquidity-info/engage:
+    put:
+      tags:
+        - "Liquidity Information"
+      summary: Engage/Disengage of all participants  from ordinary control
+      description:
+        Allows engagement or disengagement of all participants from ordinary control processes. If a participant is marked as engaged it will be part of the ordinary control process. If a participant is marked as disengaged it will not be part of the ordinary control process.
+          
+      operationId: engageParticipants
+      consumes:
+        - application/json
+      produces:
+        - application/vnd.nets.app-v1+json
+      parameters:
+        - in: query
+          name: engage
+          description: Engage or disengage all participants 
+          required: true
+          type: boolean
+      responses:
+        '200':
+          description: OK
+        '201':
+          description: Created
+          schema:
+            type: array
+            items:
+              $ref: '#/definitions/EngageOperationRes'
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden
+        '404':
+          description: Not Found
+      deprecated: false
+  /liquidity-info/engage/{financialIdentifier}:
+    put:
+      tags:
+        - "Liquidity Information"
+      summary: Engage/Disengage of specific participant from ordinary control
+      description:
+        Allows the engagement or disengagement of single participant from ordinary control processes. If the participant is marked as engaged it will be part of the ordinary control process. If the participant is marked as disengaged it will not be part of the ordinary control process.
+          
+      operationId: engageParticipant
+      consumes:
+        - application/json
+      produces:
+        - application/vnd.nets.app-v1+json
+      parameters:
+        - $ref: '#/parameters/financialIdentifierParam'
+        - in: query
+          name: engage
+          description: engage or disengage all participants 
+          required: true
+          type: boolean
+      responses:
+        '200':
+          description: OK
+        '201':
+          description: Created
+          schema:
+              $ref: '#/definitions/EngageOperationRes'
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden
+        '404':
+          description: Not Found
+      deprecated: false
+  /liquidity-info/preCalculation/{directParticipant}:
+    post:  # This method has been changed from GET to POST as per Bjarnes suggession: Values shall not be transferred as path parameters – these shall only contain id’s that of resource
+      tags:
+        - "Liquidity Information"
+      summary: Provides an overview of the current Liquidity Rule of a specific participant and the changes in funds should the new Liquidity Rule be applied
+      description: |-
+        The new Liquidity Rule is provided by the 'liquidityRule' request parameter. The preccalculated information is returned for the specified participant
+
+        
+          This API does not change the existing liquidity rule
+          and it will not run any extraordinary control. It is merely a calculation tool to see what would happen, if the participant changes the liquidity rule to the given amount. 
+      operationId: getLiquidityPreCalculationUsingGET
+      consumes:
+        - application/json
+      produces:
+        - application/vnd.nets.app-v1+json
+      parameters:
+        - name: directParticipant
+          in: path
+          description: Direct participant identifier
+          required: true
+          type: string
+        - name: liquidityRule
+          in: body
+          description: New Liquidity Rule
+          required: true
+          schema:
+            $ref: '#/definitions/LiquidityParticipantDetailsReq'
+      responses:
+        '200':
+          description: OK
+          schema:
+            $ref: '#/definitions/LiquidityParticipantDetailsRes'
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden
+        '404':
+          description: Not Found
+      deprecated: false
+  /ordinarycontrol/{ordinaryControlId}:
+    get:
+      tags:
+        - "Ordinary Controls"
+      summary: Get an Ordinary Control
+      description:
+         Get an Ordinary Control by id 
+         
+      operationId: getOrdinaryControl
+      consumes:
+        - application/json
+      produces:
+        - application/vnd.nets.app-v1+json
+      parameters:
+        - in: path
+          name: ordinaryControlId
+          description: The id of the Ordinary Control
+          type: string
+          required: true
+        
+      responses:
+        '200':
+          description: OK
+          schema:
+            $ref: '#/definitions/OrdinaryControls'
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden
+        '404':
+          description: Not Found
+      deprecated: false
+  /ordinarycontrol:
+    get:
+      tags:
+        - "Ordinary Controls"
+      summary: Get Ordinary Controls
+      description:
+         Get all ordinary controls in the system for the specific date. 
+         
+         If no date is provided, current date is considered.
+        
+         # Status    Date              Result
+         # -----------------------------------------------------------
+         # Present    NA      Filtered by given status and current date
+         # NA       Present   Filtered by given date
+         # Present  Present   Filtered by given status and given date
+         # NA         NA      Filtered by current date
+         
+         
+      operationId: getOrdinaryControls
+      consumes:
+        - application/json
+      produces:
+        - application/vnd.nets.app-v1+json
+      parameters:
+        - in: query
+          name: date
+          description: Creation date of the Ordinary Control. Defaulut is current system date
+          type: string
+        - in: query
+          name: page
+          description: Page number
+          default: 1
+          type: number
+        - in: query
+          name: limit
+          description: Number of Ordinary Controls per page
+          type: number
+          default: 50
+        - name: status
+          in: query
+          description: Status of the ordinary control
+          required: false
+          enum: [AWAITING,DONE]
+          type: string
+      responses:
+        '200':
+          description: OK
+          schema:
+            $ref: '#/definitions/OrdinaryControls'
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden
+        '404':
+          description: Not Found
+      deprecated: false
+      
+  /ordinarycontrol/file/{notificationType}/{id}:
+    get:
+      tags:
+        - "Ordinary Controls"
+      summary: Downloads file sent to the settlement institution and received from the settlement institution.
+      description: |-
+        Performs file download operation for AsTransferInitiation or AsInitiationStatus messages associated with a Liquidity Adjustment Request.
+      operationId: getSettlementNotificationFile
+      consumes:
+        - application/json
+      produces:
+        - application/xml
+      parameters:
+        - name: id
+          in: path
+          description: Unique identifier of a Liquidity Adjustment Request
+          required: true
+          type: integer
+          format: int64
+        - name: notificationType
+          enum: [AsTransferInitiation,AsInitiationStatus]
+          in: path
+          description: Type of the Notification
+          required: true
+          type: string
+      responses:
+        '200':
+          description: A XML file.
+          schema:
+            type: file
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden
+        '404':
+          description: Not Found
+      deprecated: false
+  /ordinarycontrol/extraordinaryControl:
+    post:
+      tags:
+        - "Ordinary Controls"
+      summary: Run Extraordinary Control process
+      description: |-
+        Executes the Ordinary Controls immediately.
+
+      operationId: getExtraordinaryControls
+      consumes:
+        - application/json
+      produces:
+        - application/vnd.nets.app-v1+json
+      responses:
+        '200':
+          schema:
+            $ref: '#/definitions/OrdinaryControls'
+          description: OK
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden
+        '404':
+          description: Not Found
+      deprecated: false
+definitions:
+  DbFile:
+    type: object
+    properties:
+      fileId:
+        type: integer
+        format: int64
+      compressed:
+        type: boolean
+        description: Compressed
+      contentLength:
+        type: integer
+        format: int64
+        description: Content length
+      createdTime:
+        type: string
+        format: 'date-time'
+        description: Created date/time
+      description:
+        type: string
+      empty:
+        type: boolean
+      encoding:
+        type: string
+        description: Encoding
+      fileName:
+        type: string
+        description: File name
+    title: DbFile
+    description: File information
+  Lar:
+    type: object
+    properties:
+      larId:
+        type: integer
+        format: int64
+        description: Internal identifier
+      availableCredit:
+        type: number
+        description: New Available Credit after a liquidity adjustment was made
+      createdTime:
+        type: string
+        format: 'date-time'
+      creditLine:
+        type: number
+        description: New Credit Line after a liquidity adjustment was made
+      delta:
+        type: number
+      description:
+        type: string
+        description: Description
+      endToEndId:
+        type: string
+        description: Lar EndToEndIdentification
+      financialIdentifier:
+        $ref: '#/definitions/financialIdentifier'
+      initiationStatusFile:
+        description: File that is receive from the settlement institution  for INCREASE
+        $ref: '#/definitions/DbFile'
+      instrId:
+        type: string
+      liquidityRule:
+        type: number
+        description: Amount maintained in the settlement institution
+      monetaryDay:
+        type: string
+      status:
+        type: string
+        description: The status of a lar after it was sent to core
+        enum:
+          - IN_PROGRESS
+          - SUCCESSFUL
+          - RETRY
+          - ERROR
+          - REJECTED
+      transferInitiationFile:
+        description: The file that is sent from LQ to settlement institution
+        $ref: '#/definitions/DbFile'
+      type:
+        type: string
+        description: Action type
+        enum:
+          - DECREASE
+          - INCREASE
+    title: Lar
+    description: Information about Liquidity Adjustment Request
+  OrdinaryControl:
+    type: object
+    properties:
+      id:
+        type: integer
+        format: int64
+        description: Unique identifier of the Ordinary Control
+      createdTime:
+        type: string
+        format: 'date-time'
+        description: Created time of the Ordinary Control
+      lars:
+        type: array
+        items:
+          $ref: '#/definitions/Lar'
+      manuallyInitiated:
+        type: boolean
+        description: Whether the Ordinary Control was manually initiated
+      monetaryDay:
+        type: string
+      status:
+        type: string
+        enum:
+          - AWAITING
+          - DONE
+        description: Status of the Ordinary Control
+      updatedTime:
+        type: string
+        format: 'date-time'
+        description: Last updated time of the Ordinary Control
+    title: OrdinaryControl
+    
+  OrdinaryControls:
+    type: object
+    properties:
+      ordinaryControls:
+        type: array
+        description: content of the elements
+        items:
+          $ref: '#/definitions/OrdinaryControl'
+    title: OrdinaryControls
+    description: List of the Ordinary Controls
+  LiquiditySettingsRes:
+    type: object
+    properties:
+      financialIdentifier:
+        $ref: '#/definitions/financialIdentifier'
+      liquidityRule:
+        type: number
+        description: Amount maintained in the settlement institution.
+      liquidityThreshold:
+          $ref: '#/definitions/LiquidityThresholds'
+      createdTime:
+        type: string
+        format: 'date-time'
+        description: Date and time where the liquidity rule and threshold value was modified
+      liquidityParamHistory:
+        type: array
+        items:
+          $ref: '#/definitions/LiquidityParamHistory' 
+    title: LiquiditySettingsRes
+    description: Participant liquidity rule thresholds
+  LiquidityParamHistory:
+    type: object
+    properties:
+      parameter: 
+        type: string
+        description: The Parameter which specifies the Value updated in the particular rule or threshold. 
+        enum: [LIQUIDITY_RULE,UPPER_THRESHOLD, LOWER_THRESHOLD,MIN_VALUE]
+      newValue:
+        type: number
+        description: New value
+        example: 100
+      originalValue:
+        type: number
+        description: Old value
+      createdTime:
+        type: string
+        format: 'date-time'
+        description: Updated time
+      status:
+        type: string
+        description: status
+    title: LiquidityParamHistory
+    description: Liquidity Parameter history
+  LiquidityThresholds:
+    type: object
+    properties:
+      lowerThreshold:
+        type: number
+        description: When the available credit surpasses,it triggers an increase of the credit line.
+      upperThreshold:
+        type: number
+        description: When the available credit surpasses,it triggers a decrease of the credit line.
+      minValue:
+        type: number
+        description: The Lowest value available for the Liquidity Rule. 0 is always an allowed value
+    title: ParticipantLiquidityThresholds
+    description: Participant liquidity thresholds
+  LiquiditySettingsApprovalRes:
+    type: object
+    properties:
+      financialIdentifier:
+        type: string
+        description: Participant identifier
+      liquidityRule:
+        type: number
+        description: The amount of the liquidity rule
+      liquidityThreshold:
+          $ref: '#/definitions/LiquidityThresholds'
+      createdTime:
+        type: string
+        format: 'date-time'
+        description: Date and time where the liquidity threshold value was modified
+      forApproval:
+        type: boolean
+        default: false
+        description: Participant engagement/disengagement will be available in the system only after the second user approval
+    title: LiquiditySettingsApprovalRes
+    description: Liquidity Settings Approval Response
+  LiquidityParticipantDetailsReq:
+   type: object
+   properties:
+    liquidityRule:
+     type: number
+     description: New Liquidity Rule
+  LiquiditySettingsApprovalReq:
+    type: object
+    properties:
+      financialIdentifier:
+        type: string
+        description: Participant identifier
+      liquidityRule:
+        type: number
+        description: The amount of the liquidity rule
+      liquidityThreshold:
+          $ref: '#/definitions/LiquidityThresholds'
+    title: LiquiditySettingsApprovalReq
+    description: Liquidity Settings Approval Request
+  PaymentInf:
+    type: object
+    properties:
+      id:
+        type: integer
+        format: int64
+      cashClearingCode:
+        type: string
+      endToEndId:
+        type: string
+      instructionId:
+        type: string
+      participant:
+        type: string
+      requestedExecutionDate:
+        type: string
+      standingOrder:
+        $ref: '#/definitions/StandingOrder'
+    title: PaymentInf
+  StandingOrder:
+    type: object
+    properties:
+      id:
+        type: integer
+        format: int64
+      dbFile:
+        $ref: '#/definitions/DbFile'
+      groupId:
+        type: string
+      lars:
+        type: array
+        items:
+          $ref: '#/definitions/Lar'
+      monetaryDay:
+        type: string
+      paymentInf:
+        type: array
+        items:
+          $ref: '#/definitions/PaymentInf'
+      xmlNotificationResults:
+        type: array
+        items:
+          $ref: '#/definitions/XMLNotificationResult'
+    title: StandingOrder
+  XMLNotificationResult:
+    type: object
+    properties:
+      id:
+        type: integer
+        format: int64
+      amount:
+        type: string
+      financialIdentifier:
+        $ref: '#/definitions/financialIdentifier'
+      monetaryDay:
+        type: string
+        format: 'date-time'
+      requestIdentification:
+        type: string
+      resultedStatus:
+        type: string
+      standingOrder:
+        $ref: '#/definitions/StandingOrder'
+      statusDescription:
+        type: string
+    title: XMLNotificationResult
+  EngageOperationRes:
+    type: object
+    required:
+      - isEngaged
+    properties:
+      financialIdentifier:
+        $ref: '#/definitions/financialIdentifier'
+      isEngaged:
+        type: boolean
+        description: Whether the participant is allowed to engage in liquidity operations.
+      forApproval:
+        type: boolean
+        default: false
+        description: Participant engagement/disengagement will be available in the system only after the second user approval
+    title: EngageOperationRes
+    description: Engage Info Approval Response
+    
+  financialIdentifier:
+    type: string
+    description: Financial identifier of a participant
+  LiquidityParticipantDetailsRes:
+    type: object
+    properties:
+      changeInAvailableCredit:
+        type: number
+        description: The difference between New Liquidity Rule and Available Credit
+      changeInLiquidityRule:
+        type: number
+        description: The difference between New Liquidity Rule and Old Liquidity Rule
+      currentAvailableCredit:
+        type: number
+        description: Current Available Credit. This value is given from core
+      currentLiquidityRule:
+        type: number
+        description: Current Liquidity Rule
+      isEngaged:
+        type: boolean
+      financialIdentifier:
+        type: string
+        description: The participant's identifier
+      
+      newAvailableCredit:
+        type: number
+        description: The new Liquidity Rule will become the New Available Credit
+      percentageAcToRule:
+        type: string
+        description: Current Available Credit as a percentage compared to new Liquidity Rule
+      createdTime:
+        type: string
+        format: 'date-time'
+        description: Date of Liquidity Rule's creation
+      type:
+        type: string
+        enum: [INCREASE,DECREASE,NOACTION]
+        description: 'The type of action that will be done: increase, decrease or no action'
+    title: LiquidityParticipantDetails
+    description: Liquidity details during an ordinary controls
+  LiquiditySettingHistory:
+    type: object
+    properties:
+      financialIdentifier:
+        $ref: '#/definitions/financialIdentifier'
+      lqParamHistory:
+        type: array
+        items:
+          $ref: '#/definitions/LqParamHistory'
+      updatesCount:
+        type: string
+        description: Liquidity Settings Updates count
+    title: LiquiditySettingHistory
+    description: Liquidity Settings History
+  LqParamHistory:
+    type: object
+    properties:
+      date:
+       type: string
+       description: updated time of the rule or thresholds.
+      lqParamInfo:
+       type: array
+       items:
+        $ref: '#/definitions/LqParamInfo'
+    title: LqParamHistory
+    description: Liquidity Parameter History 
+  LqParamInfo:
+    type: object
+    properties:
+     pameter:
+      type: string
+      enum: [LIQUIDITY_RULE,UPPER_THRESHOLD,LOWER_THRESHOLD,MIN_VALUE]
+      description: parameter is used to specify the rule or thresholds value updated.
+     new_value: 
+      type: number
+      description: updated value of rule or thresholds.
+     original_value:
+      type: number
+      description: current value, before modifiying the rule or threshold
+     createdTime:
+      type: string
+      format: 'date-time'
+      description: updated time of the rule or thresholds.
+     status:
+      type: string
+      description: status of the rule or thresholds updated.
+    title: LqParamInfo
+    description: Liquidity Parameters Info
+  ErrorResponse:
+    type: object
+    properties:
+      errorCode:
+        type: string
+        description: errorCode
+      errorName:
+        type: string
+        description: errorName
+      errorType:
+        type: string
+        enum: [BUSINESS_ERROR,TECHNICAL_ERROR, VALIDATION_ERROR, SECURITY_ERROR, UNKNOWN_ERROR]
+        description: errorType
+      errorDescription:
+        type: string
+        description: errorDescription
+      currentTime:
+        type: string
+        format: 'date-time'
+        description: currentTime
+      instance:
+        type: string
+        description: Environment name, For example, Test or Production        
+    title: ErrorResponse
+    description: Error Response Message 
+parameters:
+  financialIdentifierParam:
+    name: financialIdentifier
+    in: path
+    description: Financial identifier of a participant
+    type: string
+    required: true
